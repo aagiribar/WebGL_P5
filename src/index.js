@@ -6,9 +6,13 @@ const vertexShaderSource = `#version 300 es
 precision mediump float;
 
       in vec3 aCoordinates;
+
+      uniform vec4 uLightCoordinates;
+      uniform bool uFixedLight;
+
       uniform mat4 uModelMatrix;
       uniform mat4 uViewMatrix;
-      //out vec4 vVertexColor;
+
       in vec3 aVertexNormals;
 
       out vec3 vNormal;
@@ -27,8 +31,12 @@ precision mediump float;
         vEyeVector = -vertex.xyz;
         // compute vector from vertex to light
 
-        // vec4 light = vec4(10,10,10,1);
-        vec4 light = uModelMatrix * vec4(10,10,10,1);
+        vec4 light = uLightCoordinates;
+
+        if (!uFixedLight) {
+          light = uModelMatrix * uLightCoordinates;  
+        }
+
         vLightDirection = light.xyz - vertex.xyz;
       }
 `;
@@ -87,12 +95,15 @@ var zoomFactor = 1;
 var viewMatrixLoc;
 var normalsLoc;
 var normal_buffer;
+var lightCoordinatesLoc;
+var fixedLightLoc;
 
-/*var settings = {
-  translateX: 0.0,
-  translateY: 0.0,
-  rotateZ: 0.0,
-};*/
+var settings = {
+  lightPositionX: 10.0,
+  lightPositionY: 10.0,
+  lightPositionZ: 10.0,
+  fixedLight: true,
+};
 
 var matrixStack = [];
 function glPushMatrix() {
@@ -112,11 +123,12 @@ function init() {
 
   gl.enable(gl.DEPTH_TEST);
 
-  /*// create GUI
+  // create GUI
   var gui = new dat.GUI();
-  gui.add(settings, "translateX", -1.0, 1.0, 0.01);
-  gui.add(settings, "translateY", -1.0, 1.0, 0.01);
-  gui.add(settings, "rotateZ", -180, 180);
+  gui.add(settings, "lightPositionX", -10.0, 10.0, 0.01);
+  gui.add(settings, "lightPositionY", -10.0, 10.0, 0.01);
+  gui.add(settings, "lightPositionZ", -10.0, 10.0, 0.01);
+  gui.add(settings, "fixedLight");
 
   // Posicionar el GUI debajo del canvas
   const canvasRect = canvas.getBoundingClientRect();
@@ -127,7 +139,6 @@ function init() {
     window.scrollX +
     (canvasRect.width - gui.domElement.offsetWidth) / 2 +
     "px";
-    */
 
   //========== STEP 2: Create and compile shaders ==========
 
@@ -199,10 +210,11 @@ function init() {
 
   // look up uniform locations
   colorLocation = gl.getUniformLocation(shaderProgram, "uColor");
-
   modelMatrixLoc = gl.getUniformLocation(shaderProgram, "uModelMatrix");
   viewMatrixLoc = gl.getUniformLocation(shaderProgram, "uViewMatrix");
   normalsLoc = gl.getAttribLocation(shaderProgram, "aVertexNormals");
+  lightCoordinatesLoc = gl.getUniformLocation(shaderProgram, "uLightCoordinates");
+  fixedLightLoc = gl.getUniformLocation(shaderProgram, "uFixedLight");
 
   gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
   gl.vertexAttribPointer(normalsLoc, 3, gl.FLOAT, false, 0, 0);
@@ -249,6 +261,15 @@ function render() {
   mat4.rotateY(modelMatrix, modelMatrix, rotateY);
   // drawGround
   //renderGround(9, 10);
+
+  gl.uniform4fv(lightCoordinatesLoc, [
+    settings.lightPositionX, 
+    settings.lightPositionY, 
+    settings.lightPositionZ, 
+    1
+  ]);
+
+  gl.uniform1i(fixedLightLoc, settings.fixedLight);
 
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
   renderSphere(20);
