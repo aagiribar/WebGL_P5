@@ -46,7 +46,9 @@ const fragmentShaderSource = `#version 300 es
 precision mediump float;
 
 out vec4 fragColor;
-uniform vec4 uColor;
+uniform vec3 uDiffuseColor;
+uniform vec3 uSpecularColor;
+uniform vec3 uAmbientColor;
 //in vec4 vVertexColor;
 
 in vec3 vNormal;
@@ -57,7 +59,7 @@ void main(void) {
   // computing diffuse component
   vec3 N = normalize(vNormal);
   vec3 L = normalize(vLightDirection);
-  vec3 diffuseMaterial = vec3(0,1,0);
+  vec3 diffuseMaterial = uDiffuseColor;;
   float diffuse = max(dot(N, L), 0.0);
   vec4 Idif = vec4(diffuse*diffuseMaterial,1);
 
@@ -67,14 +69,14 @@ void main(void) {
   if (NL>0.0) {
     vec3 R = 2.0*N*NL-L;
     float shininess = 10.0;
-    vec3 specularMaterial = vec3(1,0,0);
+    vec3 specularMaterial = uSpecularColor;
     vec3 V = normalize(vEyeVector);
     float specular = pow(max(dot(R, V), 0.0), shininess);
     Ispec = vec4(specular * specularMaterial, 1);
   }
 
   // computing ambient component
-  vec4 Iamb = vec4(0,0,0.2,1);
+  vec4 Iamb = vec4(uAmbientColor,1);
   
   // calculamos color final
   fragColor = Iamb + Idif + Ispec;
@@ -83,7 +85,6 @@ void main(void) {
 `;
 
 var canvas, gl;
-var colorLocation;
 var vertex_buffer;
 var modelMatrixLoc;
 var modelMatrix;
@@ -97,12 +98,16 @@ var normalsLoc;
 var normal_buffer;
 var lightCoordinatesLoc;
 var fixedLightLoc;
+var diffuseColorLoc, specularColorLoc, ambientColorLoc;
 
 var settings = {
   lightPositionX: 10.0,
   lightPositionY: 10.0,
   lightPositionZ: 10.0,
   fixedLight: true,
+  diffuseColor: "#00ff00",
+  specularColor: "#ff0000",
+  ambientColor: "#0000ff",
 };
 
 var matrixStack = [];
@@ -129,7 +134,11 @@ function init() {
   gui.add(settings, "lightPositionY", -10.0, 10.0, 0.01);
   gui.add(settings, "lightPositionZ", -10.0, 10.0, 0.01);
   gui.add(settings, "fixedLight");
+  gui.addColor(settings, "diffuseColor");
+  gui.addColor(settings, "specularColor");
+  gui.addColor(settings, "ambientColor");
 
+  /*
   // Posicionar el GUI debajo del canvas
   const canvasRect = canvas.getBoundingClientRect();
   gui.domElement.style.position = "absolute";
@@ -139,6 +148,7 @@ function init() {
     window.scrollX +
     (canvasRect.width - gui.domElement.offsetWidth) / 2 +
     "px";
+  */
 
   //========== STEP 2: Create and compile shaders ==========
 
@@ -209,12 +219,14 @@ function init() {
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
   // look up uniform locations
-  colorLocation = gl.getUniformLocation(shaderProgram, "uColor");
   modelMatrixLoc = gl.getUniformLocation(shaderProgram, "uModelMatrix");
   viewMatrixLoc = gl.getUniformLocation(shaderProgram, "uViewMatrix");
   normalsLoc = gl.getAttribLocation(shaderProgram, "aVertexNormals");
   lightCoordinatesLoc = gl.getUniformLocation(shaderProgram, "uLightCoordinates");
   fixedLightLoc = gl.getUniformLocation(shaderProgram, "uFixedLight");
+  diffuseColorLoc = gl.getUniformLocation(shaderProgram, "uDiffuseColor");
+  specularColorLoc = gl.getUniformLocation(shaderProgram, "uSpecularColor");
+  ambientColorLoc = gl.getUniformLocation(shaderProgram, "uAmbientColor");
 
   gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
   gl.vertexAttribPointer(normalsLoc, 3, gl.FLOAT, false, 0, 0);
@@ -268,6 +280,10 @@ function render() {
     settings.lightPositionZ, 
     1
   ]);
+
+  gl.uniform3fv(diffuseColorLoc, hexToRgb(settings.diffuseColor));
+  gl.uniform3fv(specularColorLoc, hexToRgb(settings.specularColor));
+  gl.uniform3fv(ambientColorLoc, hexToRgb(settings.ambientColor));
 
   gl.uniform1i(fixedLightLoc, settings.fixedLight);
 
@@ -432,4 +448,17 @@ function onMouseMove(e) {
 function zoom(e) {
   if (e.deltaY < 0) zoomFactor *= 1.1;
   else zoomFactor *= 0.9;
+}
+
+function hexToRgb(hex) {
+  // Elimina el signo "#" si está presente
+  hex = hex.replace(/^#/, '');
+
+  // Divide el valor hexadecimal en sus componentes RGB
+  const r = parseInt(hex.substring(0, 2), 16) / 255;
+  const g = parseInt(hex.substring(2, 4), 16) / 255;
+  const b = parseInt(hex.substring(4, 6), 16) / 255;
+  
+  // Devuelve un objeto con los valores RGB normalizados
+  return [r, g, b];
 }
