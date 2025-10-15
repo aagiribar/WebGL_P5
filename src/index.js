@@ -5,19 +5,28 @@ import { mat4 } from "gl-matrix";
 const vertexShaderSource = `#version 300 es
 precision mediump float;
 
+      #define MAX_LIGHTS 5
       in vec3 aCoordinates;
 
-      uniform vec4 uLightCoordinates;
-      uniform bool uFixedLight;
+      // Array with light coordinates representes as vec4
+      uniform vec4 uLightsCoordinates[MAX_LIGHTS];
 
+      // Boolean value that indicates if light should be in a fixes position or rotate with the scene
+      uniform bool uFixedLights;
+
+      // Array of int that indicates which lights should be rendered
+      uniform int uShowLights[5];
+
+      // Model and view matrixes
       uniform mat4 uModelMatrix;
       uniform mat4 uViewMatrix;
 
+      // Normal vector for vertices
       in vec3 aVertexNormals;
 
       out vec3 vNormal;
       out vec3 vEyeVector;
-      out vec3 vLightDirection;
+      out vec3 vLightDirections[5];
 
       void main(void) {
         // saving vertex after transformations BEFORE PERSPECTIVE
@@ -31,13 +40,21 @@ precision mediump float;
         vEyeVector = -vertex.xyz;
         // compute vector from vertex to light
 
-        vec4 light = uLightCoordinates;
+        // Compute light directions
+        for(int i = 0; i < MAX_LIGHTS; i++) {
+          vec4 light = uLightsCoordinates[i];
 
-        if (!uFixedLight) {
-          light = uModelMatrix * uLightCoordinates;  
+          if (!uFixedLights) {
+            light = uModelMatrix * light;
+          }
+
+          if (uShowLights[i] == 0) {
+            vLightDirections[i] = vec3(999.0, 999.0, 999.0);
+          }
+          else {
+            vLightDirections[i] = light.xyz - vertex.xyz;
+          } 
         }
-
-        vLightDirection = light.xyz - vertex.xyz;
       }
 `;
 
@@ -45,46 +62,60 @@ precision mediump float;
 const fragmentShaderSource = `#version 300 es
 precision mediump float;
 
+#define MAX_LIGHTS 5
 out vec4 fragColor;
 
+// Color value for the three types of light
 uniform vec3 uDiffuseColor;
 uniform vec3 uSpecularColor;
 uniform vec3 uAmbientColor;
 
+// Shininess value for specular light
 uniform float uShininess;
 
+// Coefficients that allow to control intensity of light
 uniform float uAmbientCoefficient;
 uniform float uDiffuseCoefficient;
 uniform float uSpecularCoefficient;
 
 in vec3 vNormal;
 in vec3 vEyeVector;
-in vec3 vLightDirection;
+in vec3 vLightDirections[5];
 
 void main(void) {
-  // computing diffuse component
-  vec3 N = normalize(vNormal);
-  vec3 L = normalize(vLightDirection);
-  vec3 diffuseMaterial = uDiffuseColor;
-  float diffuse = max(dot(N, L), 0.0);
-  vec4 Idif = vec4(uDiffuseCoefficient * diffuse * diffuseMaterial,1);
+  vec4 lightSum = vec4(0, 0, 0, 1);
 
-  // compute specular component
-  float NL = dot(N,L);
-  vec4 Ispec = vec4(0,0,0,1);
-  if (NL>0.0) {
-    vec3 R = 2.0*N*NL-L;
-    vec3 specularMaterial = uSpecularColor;
-    vec3 V = normalize(vEyeVector);
-    float specular = pow(max(dot(R, V), 0.0), uShininess);
-    Ispec = vec4(uSpecularCoefficient * specular * specularMaterial, 1);
+  // Compute specular and diffuse component of each light
+  // then add the two values to the already computed components
+  for (int i = 0; i < MAX_LIGHTS; i++) {
+    if (vLightDirections[i].x <= 15.0) {
+      // computing diffuse component
+      vec3 N = normalize(vNormal);
+      vec3 L = normalize(vLightDirections[i]);
+      vec3 diffuseMaterial = uDiffuseColor;
+      float diffuse = max(dot(N, L), 0.0);
+      vec4 Idif = vec4(uDiffuseCoefficient * diffuse * diffuseMaterial,1);
+
+      // compute specular component
+      float NL = dot(N,L);
+      vec4 Ispec = vec4(0,0,0,1);
+      if (NL>0.0) {
+        vec3 R = 2.0*N*NL-L;
+        vec3 specularMaterial = uSpecularColor;
+        vec3 V = normalize(vEyeVector);
+        float specular = pow(max(dot(R, V), 0.0), uShininess);
+        Ispec = vec4(uSpecularCoefficient * specular * specularMaterial, 1);
+      }
+      lightSum += Idif + Ispec;
+    }
   }
 
   // computing ambient component
   vec4 Iamb = vec4(uAmbientCoefficient * uAmbientColor,1);
+  lightSum += Iamb;
   
   // calculamos color final
-  fragColor = Iamb + Idif + Ispec;
+  fragColor = lightSum;
   fragColor = min(fragColor, vec4(1,1,1,1));
   }
 `;
@@ -101,11 +132,12 @@ var zoomFactor = 1;
 var viewMatrixLoc;
 var normalsLoc;
 var normal_buffer;
-var lightCoordinatesLoc;
-var fixedLightLoc;
+var lightsCoordinatesLoc;
+var fixedLightsLoc;
 var diffuseColorLoc, specularColorLoc, ambientColorLoc;
 var shininessLoc;
 var ambientCoefficientLoc, diffuseCoefficientLoc, specularCoefficientLoc;
+var showLightsLoc;
 
 var lights = [
   [10, 10, 10],
@@ -122,7 +154,7 @@ var settings = {
   lightPositionY: 10.0,
   lightPositionZ: 10.0,
   
-  fixedLight: true,
+  fixedLights: true,
   shininess: 10.0,
   
   diffuseColor: "#00ff00",
@@ -186,7 +218,7 @@ function init() {
     lightPositionZSelector.updateDisplay();
     showLightSelector.updateDisplay();
   });
-  gui.add(settings, "fixedLight");
+  gui.add(settings, "fixedLights");
   gui.add(settings, "shininess", 1, 100, 1);
   gui.addColor(settings, "diffuseColor");
   gui.addColor(settings, "specularColor");
@@ -280,8 +312,8 @@ function init() {
   modelMatrixLoc = gl.getUniformLocation(shaderProgram, "uModelMatrix");
   viewMatrixLoc = gl.getUniformLocation(shaderProgram, "uViewMatrix");
   normalsLoc = gl.getAttribLocation(shaderProgram, "aVertexNormals");
-  lightCoordinatesLoc = gl.getUniformLocation(shaderProgram, "uLightCoordinates");
-  fixedLightLoc = gl.getUniformLocation(shaderProgram, "uFixedLight");
+  lightsCoordinatesLoc = gl.getUniformLocation(shaderProgram, "uLightsCoordinates");
+  fixedLightsLoc = gl.getUniformLocation(shaderProgram, "uFixedLights");
   diffuseColorLoc = gl.getUniformLocation(shaderProgram, "uDiffuseColor");
   specularColorLoc = gl.getUniformLocation(shaderProgram, "uSpecularColor");
   ambientColorLoc = gl.getUniformLocation(shaderProgram, "uAmbientColor");
@@ -289,6 +321,7 @@ function init() {
   ambientCoefficientLoc = gl.getUniformLocation(shaderProgram, "uAmbientCoefficient");
   diffuseCoefficientLoc = gl.getUniformLocation(shaderProgram, "uDiffuseCoefficient");
   specularCoefficientLoc = gl.getUniformLocation(shaderProgram, "uSpecularCoefficient");
+  showLightsLoc = gl.getUniformLocation(shaderProgram, "uShowLights");
 
   gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
   gl.vertexAttribPointer(normalsLoc, 3, gl.FLOAT, false, 0, 0);
@@ -341,18 +374,30 @@ function render() {
   // drawGround
   //renderGround(9, 10);
 
-  gl.uniform4fv(lightCoordinatesLoc, [
-    settings.lightPositionX, 
-    settings.lightPositionY, 
-    settings.lightPositionZ, 
-    1
-  ]);
+  let lightCoordinatesArray = [];
+
+  for (let light of lights) {
+    for (let coordinate of light) {
+      lightCoordinatesArray.push(coordinate);
+    }
+    lightCoordinatesArray.push(1);
+  }
+
+  gl.uniform4fv(lightsCoordinatesLoc, new Float32Array(lightCoordinatesArray));
+
+  let showLightsArray = [];
+
+  for (let light of showLight) {
+    showLightsArray.push(light ? 1 : 0);
+  }
+
+  gl.uniform1iv(showLightsLoc, new Int32Array(showLightsArray));
 
   gl.uniform3fv(diffuseColorLoc, hexToRgb(settings.diffuseColor));
   gl.uniform3fv(specularColorLoc, hexToRgb(settings.specularColor));
   gl.uniform3fv(ambientColorLoc, hexToRgb(settings.ambientColor));
 
-  gl.uniform1i(fixedLightLoc, settings.fixedLight);
+  gl.uniform1i(fixedLightsLoc, settings.fixedLights);
 
   gl.uniform1f(shininessLoc, settings.shininess);
 
@@ -364,8 +409,14 @@ function render() {
   renderSphere(20);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
+  
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
-  renderLightSphere(20);
+  for (let i = 0; i < lights.length; i++) {
+    if (showLight[i]) {
+      renderLightSphere(20, lights[i]);
+    }
+  }
+  
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
 
@@ -541,23 +592,19 @@ function hexToRgb(hex) {
   return [r, g, b];
 }
 
-function renderLightSphere(n) {
+function renderLightSphere(n, position) {
   glPushMatrix();
 
-  if (settings.fixedLight) {
+  if (settings.fixedLights) {
     mat4.identity(modelMatrix);
   }
 
-  mat4.translate(modelMatrix, modelMatrix, [
-    settings.lightPositionX, 
-    settings.lightPositionY, 
-    settings.lightPositionZ
-  ]);
+  mat4.translate(modelMatrix, modelMatrix, position);
   mat4.scale(modelMatrix, modelMatrix, [0.1, 0.1, 0.1]);
 
   gl.uniformMatrix4fv(modelMatrixLoc, false, modelMatrix);
 
-  gl.uniform4fv(lightCoordinatesLoc, [
+  gl.uniform4fv(lightsCoordinatesLoc, [
     settings.lightPositionX, 
     settings.lightPositionY, 
     settings.lightPositionZ, 
@@ -568,7 +615,7 @@ function renderLightSphere(n) {
   gl.uniform3fv(specularColorLoc, [0, 0, 0]);
   gl.uniform3fv(ambientColorLoc, [1, 1, 1]);
 
-  renderSphere(20);
+  renderSphere(n);
 
   glPopMatrix();
 }
