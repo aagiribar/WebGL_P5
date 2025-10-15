@@ -59,7 +59,7 @@ void main(void) {
   // computing diffuse component
   vec3 N = normalize(vNormal);
   vec3 L = normalize(vLightDirection);
-  vec3 diffuseMaterial = uDiffuseColor;;
+  vec3 diffuseMaterial = uDiffuseColor;
   float diffuse = max(dot(N, L), 0.0);
   vec4 Idif = vec4(diffuse*diffuseMaterial,1);
 
@@ -291,6 +291,11 @@ function render() {
   renderSphere(20);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
+  renderLightSphere(20);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+
+
   // Unbind the buffer
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
@@ -461,4 +466,36 @@ function hexToRgb(hex) {
   
   // Devuelve un objeto con los valores RGB normalizados
   return [r, g, b];
+}
+
+function renderLightSphere(n) {
+  glPushMatrix();
+
+  if (settings.fixedLight) {
+    mat4.identity(modelMatrix);
+  }
+
+  mat4.translate(modelMatrix, modelMatrix, [
+    settings.lightPositionX, 
+    settings.lightPositionY, 
+    settings.lightPositionZ
+  ]);
+  mat4.scale(modelMatrix, modelMatrix, [0.1, 0.1, 0.1]);
+
+  gl.uniformMatrix4fv(modelMatrixLoc, false, modelMatrix);
+
+  gl.uniform4fv(lightCoordinatesLoc, [
+    settings.lightPositionX, 
+    settings.lightPositionY, 
+    settings.lightPositionZ, 
+    1
+  ]);
+
+  gl.uniform3fv(diffuseColorLoc, [0, 0, 0]);
+  gl.uniform3fv(specularColorLoc, [0, 0, 0]);
+  gl.uniform3fv(ambientColorLoc, [1, 1, 1]);
+
+  renderSphere(20);
+
+  glPopMatrix();
 }
