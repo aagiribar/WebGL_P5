@@ -107,19 +107,35 @@ var diffuseColorLoc, specularColorLoc, ambientColorLoc;
 var shininessLoc;
 var ambientCoefficientLoc, diffuseCoefficientLoc, specularCoefficientLoc;
 
+var lights = [
+  [10, 10, 10],
+  [-10, -10, -10],
+  [5, 5, 5],
+  [-5, -5, 5],
+  [0, 0, 0]
+]
+
+var showLight = [true, false, false, false, false];
+
 var settings = {
   lightPositionX: 10.0,
   lightPositionY: 10.0,
   lightPositionZ: 10.0,
+  
   fixedLight: true,
   shininess: 10.0,
+  
   diffuseColor: "#00ff00",
   specularColor: "#ff0000",
   ambientColor: "#0000ff",
   backgroundColor: "#ff7777",
+  
   ambientCoefficient: 1.0,
   diffuseCoefficient: 1.0,
-  specularCoefficient: 1.0, 
+  specularCoefficient: 1.0,
+
+  selectedLight: 1,
+  showLight: true
 };
 
 var matrixStack = [];
@@ -142,9 +158,34 @@ function init() {
 
   // create GUI
   var gui = new dat.GUI();
-  gui.add(settings, "lightPositionX", -10.0, 10.0, 0.01);
-  gui.add(settings, "lightPositionY", -10.0, 10.0, 0.01);
-  gui.add(settings, "lightPositionZ", -10.0, 10.0, 0.01);
+
+  const lightPositionXSelector = gui.add(settings, "lightPositionX", -10.0, 10.0, 0.01).onChange(function(value) {
+    lights[settings.selectedLight - 1][0] = value;
+  });
+
+  const lightPositionYSelector = gui.add(settings, "lightPositionY", -10.0, 10.0, 0.01).onChange(function(value) {
+    lights[settings.selectedLight - 1][1] = value;
+  });
+
+  const lightPositionZSelector = gui.add(settings, "lightPositionZ", -10.0, 10.0, 0.01).onChange(function(value) {
+    lights[settings.selectedLight - 1][2] = value;
+  });
+
+  const showLightSelector = gui.add(settings, "showLight").onChange(function(value) {
+    showLight[settings.selectedLight - 1] = value;
+  });
+
+  gui.add(settings, "selectedLight", [1, 2, 3, 4, 5]).onChange(function(value) {
+    settings.lightPositionX = lights[value - 1][0];
+    settings.lightPositionY = lights[value - 1][1];
+    settings.lightPositionZ = lights[value - 1][2];
+    settings.showLight = showLight[value - 1];
+    
+    lightPositionXSelector.updateDisplay();
+    lightPositionYSelector.updateDisplay();
+    lightPositionZSelector.updateDisplay();
+    showLightSelector.updateDisplay();
+  });
   gui.add(settings, "fixedLight");
   gui.add(settings, "shininess", 1, 100, 1);
   gui.addColor(settings, "diffuseColor");
