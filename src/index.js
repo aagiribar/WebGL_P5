@@ -49,6 +49,7 @@ out vec4 fragColor;
 uniform vec3 uDiffuseColor;
 uniform vec3 uSpecularColor;
 uniform vec3 uAmbientColor;
+uniform float uShininess;
 //in vec4 vVertexColor;
 
 in vec3 vNormal;
@@ -68,10 +69,9 @@ void main(void) {
   vec4 Ispec = vec4(0,0,0,1);
   if (NL>0.0) {
     vec3 R = 2.0*N*NL-L;
-    float shininess = 10.0;
     vec3 specularMaterial = uSpecularColor;
     vec3 V = normalize(vEyeVector);
-    float specular = pow(max(dot(R, V), 0.0), shininess);
+    float specular = pow(max(dot(R, V), 0.0), uShininess);
     Ispec = vec4(specular * specularMaterial, 1);
   }
 
@@ -99,12 +99,14 @@ var normal_buffer;
 var lightCoordinatesLoc;
 var fixedLightLoc;
 var diffuseColorLoc, specularColorLoc, ambientColorLoc;
+var shininessLoc;
 
 var settings = {
   lightPositionX: 10.0,
   lightPositionY: 10.0,
   lightPositionZ: 10.0,
   fixedLight: true,
+  shininess: 10.0,
   diffuseColor: "#00ff00",
   specularColor: "#ff0000",
   ambientColor: "#0000ff",
@@ -135,6 +137,7 @@ function init() {
   gui.add(settings, "lightPositionY", -10.0, 10.0, 0.01);
   gui.add(settings, "lightPositionZ", -10.0, 10.0, 0.01);
   gui.add(settings, "fixedLight");
+  gui.add(settings, "shininess", 1, 100, 1);
   gui.addColor(settings, "diffuseColor");
   gui.addColor(settings, "specularColor");
   gui.addColor(settings, "ambientColor");
@@ -229,6 +232,7 @@ function init() {
   diffuseColorLoc = gl.getUniformLocation(shaderProgram, "uDiffuseColor");
   specularColorLoc = gl.getUniformLocation(shaderProgram, "uSpecularColor");
   ambientColorLoc = gl.getUniformLocation(shaderProgram, "uAmbientColor");
+  shininessLoc = gl.getUniformLocation(shaderProgram, "uShininess");
 
   gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
   gl.vertexAttribPointer(normalsLoc, 3, gl.FLOAT, false, 0, 0);
@@ -293,6 +297,8 @@ function render() {
   gl.uniform3fv(ambientColorLoc, hexToRgb(settings.ambientColor));
 
   gl.uniform1i(fixedLightLoc, settings.fixedLight);
+
+  gl.uniform1f(shininessLoc, settings.shininess);
 
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
   renderSphere(20);
