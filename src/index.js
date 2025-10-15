@@ -108,6 +108,7 @@ var settings = {
   diffuseColor: "#00ff00",
   specularColor: "#ff0000",
   ambientColor: "#0000ff",
+  backgroundColor: "#ff7777",
 };
 
 var matrixStack = [];
@@ -137,6 +138,7 @@ function init() {
   gui.addColor(settings, "diffuseColor");
   gui.addColor(settings, "specularColor");
   gui.addColor(settings, "ambientColor");
+  gui.addColor(settings, "backgroundColor");
 
   /*
   // Posicionar el GUI debajo del canvas
@@ -237,7 +239,12 @@ function render() {
   //========= STEP 4: Create the geometry and draw ===============
 
   // Clear the canvas
-  gl.clearColor(1.0, 0.5, 0.5, 1.0);
+  const backgroundColorRGB = hexToRgb(settings.backgroundColor);
+  gl.clearColor(
+    backgroundColorRGB[0], 
+    backgroundColorRGB[1], 
+    backgroundColorRGB[2], 
+    1.0);
 
   // Clear the color buffer bit
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
