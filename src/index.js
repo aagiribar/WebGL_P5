@@ -46,11 +46,16 @@ const fragmentShaderSource = `#version 300 es
 precision mediump float;
 
 out vec4 fragColor;
+
 uniform vec3 uDiffuseColor;
 uniform vec3 uSpecularColor;
 uniform vec3 uAmbientColor;
+
 uniform float uShininess;
-//in vec4 vVertexColor;
+
+uniform float uAmbientCoefficient;
+uniform float uDiffuseCoefficient;
+uniform float uSpecularCoefficient;
 
 in vec3 vNormal;
 in vec3 vEyeVector;
@@ -62,7 +67,7 @@ void main(void) {
   vec3 L = normalize(vLightDirection);
   vec3 diffuseMaterial = uDiffuseColor;
   float diffuse = max(dot(N, L), 0.0);
-  vec4 Idif = vec4(diffuse*diffuseMaterial,1);
+  vec4 Idif = vec4(uDiffuseCoefficient * diffuse * diffuseMaterial,1);
 
   // compute specular component
   float NL = dot(N,L);
@@ -72,11 +77,11 @@ void main(void) {
     vec3 specularMaterial = uSpecularColor;
     vec3 V = normalize(vEyeVector);
     float specular = pow(max(dot(R, V), 0.0), uShininess);
-    Ispec = vec4(specular * specularMaterial, 1);
+    Ispec = vec4(uSpecularCoefficient * specular * specularMaterial, 1);
   }
 
   // computing ambient component
-  vec4 Iamb = vec4(uAmbientColor,1);
+  vec4 Iamb = vec4(uAmbientCoefficient * uAmbientColor,1);
   
   // calculamos color final
   fragColor = Iamb + Idif + Ispec;
@@ -100,6 +105,7 @@ var lightCoordinatesLoc;
 var fixedLightLoc;
 var diffuseColorLoc, specularColorLoc, ambientColorLoc;
 var shininessLoc;
+var ambientCoefficientLoc, diffuseCoefficientLoc, specularCoefficientLoc;
 
 var settings = {
   lightPositionX: 10.0,
@@ -111,6 +117,9 @@ var settings = {
   specularColor: "#ff0000",
   ambientColor: "#0000ff",
   backgroundColor: "#ff7777",
+  ambientCoefficient: 1.0,
+  diffuseCoefficient: 1.0,
+  specularCoefficient: 1.0, 
 };
 
 var matrixStack = [];
@@ -142,6 +151,9 @@ function init() {
   gui.addColor(settings, "specularColor");
   gui.addColor(settings, "ambientColor");
   gui.addColor(settings, "backgroundColor");
+  gui.add(settings, "ambientCoefficient", 0.0, 1.0, 0.1);
+  gui.add(settings, "diffuseCoefficient", 0.0, 1.0, 0.1);
+  gui.add(settings, "specularCoefficient", 0.0, 1.0, 0.1);
 
   /*
   // Posicionar el GUI debajo del canvas
@@ -233,6 +245,9 @@ function init() {
   specularColorLoc = gl.getUniformLocation(shaderProgram, "uSpecularColor");
   ambientColorLoc = gl.getUniformLocation(shaderProgram, "uAmbientColor");
   shininessLoc = gl.getUniformLocation(shaderProgram, "uShininess");
+  ambientCoefficientLoc = gl.getUniformLocation(shaderProgram, "uAmbientCoefficient");
+  diffuseCoefficientLoc = gl.getUniformLocation(shaderProgram, "uDiffuseCoefficient");
+  specularCoefficientLoc = gl.getUniformLocation(shaderProgram, "uSpecularCoefficient");
 
   gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
   gl.vertexAttribPointer(normalsLoc, 3, gl.FLOAT, false, 0, 0);
@@ -299,6 +314,10 @@ function render() {
   gl.uniform1i(fixedLightLoc, settings.fixedLight);
 
   gl.uniform1f(shininessLoc, settings.shininess);
+
+  gl.uniform1f(ambientCoefficientLoc, settings.ambientCoefficient);
+  gl.uniform1f(diffuseCoefficientLoc, settings.diffuseCoefficient);
+  gl.uniform1f(specularCoefficientLoc, settings.specularCoefficient);
 
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
   renderSphere(20);
