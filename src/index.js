@@ -120,15 +120,18 @@ void main(void) {
   }
 `;
 
+// Global variables
 var canvas, gl;
 var vertex_buffer;
-var modelMatrixLoc;
 var modelMatrix;
 var index_buffer;
 var rotateX = 0,
   rotateY = 0;
 var mouseX, mouseY;
 var zoomFactor = 1;
+
+// Shader attribute and uniform locations
+var modelMatrixLoc;
 var viewMatrixLoc;
 var normalsLoc;
 var normal_buffer;
@@ -139,6 +142,7 @@ var shininessLoc;
 var ambientCoefficientLoc, diffuseCoefficientLoc, specularCoefficientLoc;
 var showLightsLoc;
 
+// Array with light positions
 var lights = [
   [10, 10, 10],
   [-10, -10, -10],
@@ -147,8 +151,10 @@ var lights = [
   [0, 0, 0]
 ]
 
+// Array that indicates which lights should be rendered
 var showLight = [true, false, false, false, false];
 
+// Settings controlled by the GUI
 var settings = {
   lightPositionX: 10.0,
   lightPositionY: 10.0,
@@ -170,6 +176,7 @@ var settings = {
   showLight: true
 };
 
+// Matrix stack and functions to save and recover model matrix
 var matrixStack = [];
 function glPushMatrix() {
   const matrix = mat4.create();
@@ -191,6 +198,8 @@ function init() {
   // create GUI
   var gui = new dat.GUI();
 
+  // Light position selectors
+  // Each selector updates the position of the selected light in the lights array when changed
   const lightPositionXSelector = gui.add(settings, "lightPositionX", -10.0, 10.0, 0.01).onChange(function(value) {
     lights[settings.selectedLight - 1][0] = value;
   });
@@ -203,10 +212,14 @@ function init() {
     lights[settings.selectedLight - 1][2] = value;
   });
 
+  // Selector to show/hide the selected light
+  // Updates the showLight array when changed
   const showLightSelector = gui.add(settings, "showLight").onChange(function(value) {
     showLight[settings.selectedLight - 1] = value;
   });
 
+  // Selector to choose which light to edit
+  // Updates the position and visibility selectors to reflect the selected light's properties
   gui.add(settings, "selectedLight", [1, 2, 3, 4, 5]).onChange(function(value) {
     settings.lightPositionX = lights[value - 1][0];
     settings.lightPositionY = lights[value - 1][1];
@@ -218,12 +231,18 @@ function init() {
     lightPositionZSelector.updateDisplay();
     showLightSelector.updateDisplay();
   });
+
+  // Fixed lights and shininess
   gui.add(settings, "fixedLights");
   gui.add(settings, "shininess", 1, 100, 1);
+
+  // Color selectors
   gui.addColor(settings, "diffuseColor");
   gui.addColor(settings, "specularColor");
   gui.addColor(settings, "ambientColor");
   gui.addColor(settings, "backgroundColor");
+
+  // Light intensity coefficients selectors
   gui.add(settings, "ambientCoefficient", 0.0, 1.0, 0.1);
   gui.add(settings, "diffuseCoefficient", 0.0, 1.0, 0.1);
   gui.add(settings, "specularCoefficient", 0.0, 1.0, 0.1);
@@ -308,20 +327,29 @@ function init() {
   // Unbind the buffer
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-  // look up uniform locations
+  // Look up uniform locations
+  // Model and view matrix
   modelMatrixLoc = gl.getUniformLocation(shaderProgram, "uModelMatrix");
   viewMatrixLoc = gl.getUniformLocation(shaderProgram, "uViewMatrix");
-  normalsLoc = gl.getAttribLocation(shaderProgram, "aVertexNormals");
+
+  // Light related
   lightsCoordinatesLoc = gl.getUniformLocation(shaderProgram, "uLightsCoordinates");
   fixedLightsLoc = gl.getUniformLocation(shaderProgram, "uFixedLights");
+  shininessLoc = gl.getUniformLocation(shaderProgram, "uShininess");
+  showLightsLoc = gl.getUniformLocation(shaderProgram, "uShowLights");
+
+  // Color related
   diffuseColorLoc = gl.getUniformLocation(shaderProgram, "uDiffuseColor");
   specularColorLoc = gl.getUniformLocation(shaderProgram, "uSpecularColor");
   ambientColorLoc = gl.getUniformLocation(shaderProgram, "uAmbientColor");
-  shininessLoc = gl.getUniformLocation(shaderProgram, "uShininess");
+
+  // Coefficients related
   ambientCoefficientLoc = gl.getUniformLocation(shaderProgram, "uAmbientCoefficient");
   diffuseCoefficientLoc = gl.getUniformLocation(shaderProgram, "uDiffuseCoefficient");
   specularCoefficientLoc = gl.getUniformLocation(shaderProgram, "uSpecularCoefficient");
-  showLightsLoc = gl.getUniformLocation(shaderProgram, "uShowLights");
+
+  // Look up normal attribute location
+  normalsLoc = gl.getAttribLocation(shaderProgram, "aVertexNormals");
 
   gl.bindBuffer(gl.ARRAY_BUFFER, normal_buffer);
   gl.vertexAttribPointer(normalsLoc, 3, gl.FLOAT, false, 0, 0);
@@ -337,7 +365,8 @@ function render() {
     backgroundColorRGB[0], 
     backgroundColorRGB[1], 
     backgroundColorRGB[2], 
-    1.0);
+    1.0
+  );
 
   // Clear the color buffer bit
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -374,6 +403,7 @@ function render() {
   // drawGround
   //renderGround(9, 10);
 
+  // Convert lights array to a flat array of floats to pass to the shader
   let lightCoordinatesArray = [];
 
   for (let light of lights) {
@@ -382,25 +412,26 @@ function render() {
     }
     lightCoordinatesArray.push(1);
   }
-
   gl.uniform4fv(lightsCoordinatesLoc, new Float32Array(lightCoordinatesArray));
 
+  // Convert showLight array to an array of ints (1 for true, 0 for false) to pass to the shader
   let showLightsArray = [];
 
   for (let light of showLight) {
     showLightsArray.push(light ? 1 : 0);
   }
-
   gl.uniform1iv(showLightsLoc, new Int32Array(showLightsArray));
 
+  // Pass color values to the shader
   gl.uniform3fv(diffuseColorLoc, hexToRgb(settings.diffuseColor));
   gl.uniform3fv(specularColorLoc, hexToRgb(settings.specularColor));
   gl.uniform3fv(ambientColorLoc, hexToRgb(settings.ambientColor));
 
+  // Pass other light related values to the shader
   gl.uniform1i(fixedLightsLoc, settings.fixedLights);
-
   gl.uniform1f(shininessLoc, settings.shininess);
 
+  // Pass coefficients values to the shader
   gl.uniform1f(ambientCoefficientLoc, settings.ambientCoefficient);
   gl.uniform1f(diffuseCoefficientLoc, settings.diffuseCoefficient);
   gl.uniform1f(specularCoefficientLoc, settings.specularCoefficient);
@@ -409,7 +440,7 @@ function render() {
   renderSphere(20);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
-  
+  // Render visible lights as small spheres
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
   for (let i = 0; i < lights.length; i++) {
     if (showLight[i]) {
@@ -423,79 +454,11 @@ function render() {
   // Unbind the buffer
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-  //document.getElementById("debug").textContent = "y = " + player1.y.toFixed(2);
-
   // start animation loop
   window.requestAnimationFrame(render);
 }
 
-function renderCube() {
-  glPushMatrix();
-  mat4.translate(modelMatrix, modelMatrix, [-0.5, -0.5, -0.5]);
-  gl.uniformMatrix4fv(modelMatrixLoc, false, modelMatrix);
-  // create vertices
-  const arrayV = new Float32Array([
-    0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1,
-  ]);
-  gl.bufferData(gl.ARRAY_BUFFER, arrayV, gl.STATIC_DRAW);
-
-  /*
-  // create edges
-  const arrayI = new Uint16Array([
-    0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7,
-  ]);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, arrayI, gl.STATIC_DRAW);
-  // draw cube
-  gl.uniform4fv(colorLocation, [0, 0, 0, 1]);
-  gl.drawElements(gl.LINES, 24, gl.UNSIGNED_SHORT, 0);
-  */
-
-  // create faces
-  const arrayF = new Uint16Array([
-    1,
-    0,
-    3,
-    1,
-    3,
-    2, // cara trasera
-    4,
-    5,
-    6,
-    4,
-    6,
-    7, // cara delantera
-    7,
-    6,
-    2,
-    7,
-    2,
-    3, // cara superior
-    0,
-    1,
-    5,
-    0,
-    5,
-    4, // cara inferior
-    5,
-    1,
-    2,
-    5,
-    2,
-    6, // cara derecha
-    0,
-    4,
-    7,
-    0,
-    7,
-    3, // cara izquierda
-  ]);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, arrayF, gl.STATIC_DRAW);
-  // draw cube
-  gl.uniform4fv(colorLocation, [0.3, 0.5, 1, 1]);
-  gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
-  glPopMatrix();
-}
-
+// Function that renders a sphere with n latitude divisions
 function renderSphere(n) {
   glPushMatrix();
   mat4.scale(modelMatrix, modelMatrix, [0.7, 0.7, 0.7]);
@@ -579,6 +542,7 @@ function zoom(e) {
   else zoomFactor *= 0.9;
 }
 
+// Converts a hex color string to an array of normalized RGB values
 function hexToRgb(hex) {
   // Elimina el signo "#" si está presente
   hex = hex.replace(/^#/, '');
@@ -592,6 +556,7 @@ function hexToRgb(hex) {
   return [r, g, b];
 }
 
+// Function that renders a small sphere at the position of a light
 function renderLightSphere(n, position) {
   glPushMatrix();
 
