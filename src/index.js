@@ -560,15 +560,18 @@ function hexToRgb(hex) {
 function renderLightSphere(n, position) {
   glPushMatrix();
 
+  // If lights are fixed, do not apply model transformations
   if (settings.fixedLights) {
     mat4.identity(modelMatrix);
   }
 
+  // Translate and scale to make it small
   mat4.translate(modelMatrix, modelMatrix, position);
   mat4.scale(modelMatrix, modelMatrix, [0.1, 0.1, 0.1]);
 
   gl.uniformMatrix4fv(modelMatrixLoc, false, modelMatrix);
 
+  // Pass light position to the shader
   gl.uniform4fv(lightsCoordinatesLoc, [
     settings.lightPositionX, 
     settings.lightPositionY, 
@@ -576,10 +579,13 @@ function renderLightSphere(n, position) {
     1
   ]);
 
+  // Set light color to white and disable diffuse and specular components
+  // so that the light spheres are always white
   gl.uniform3fv(diffuseColorLoc, [0, 0, 0]);
   gl.uniform3fv(specularColorLoc, [0, 0, 0]);
   gl.uniform3fv(ambientColorLoc, [1, 1, 1]);
 
+  // Render the sphere
   renderSphere(n);
 
   glPopMatrix();
